@@ -42,31 +42,31 @@ export class SeedService implements OnApplicationBootstrap {
       return;
     }
 
-    const plaza = await this.hotelsService.create({
-      name: 'Plaza Athenee',
-      city: 'Paris',
-      stars: 5,
-      status: HotelStatus.Active,
-    });
-    const ritz = await this.hotelsService.create({
-      name: 'Le Ritz Londres',
-      city: 'Londres',
-      stars: 5,
-      status: HotelStatus.Active,
-    });
-    const burj = await this.hotelsService.create({
-      name: 'Burj Al Arab',
-      city: 'Dubai',
-      stars: 5,
-      status: HotelStatus.Active,
-    });
+    const hotelsData = [
+      { city: 'Paris', name: 'Le Grand Palais', stars: 5, type: 'Suite Royale', price: 9999 },
+      { city: 'Dakar', name: 'Radisson Blu Dakar', stars: 4, type: 'Chambre Prestige', price: 1120 },
+      { city: 'Dubai', name: 'Burj Al Arab', stars: 5, type: 'Chambre Royale', price: 7590 },
+      { city: 'Brazzaville', name: 'Les Tours Jumelles', stars: 4, type: 'Villa Exclusive', price: 4590 },
+      { city: 'Tokyo', name: 'Park Hyatt', stars: 5, type: 'Hotel Luxueux', price: 9459 },
+      { city: 'Londres', name: 'The Savoy', stars: 5, type: 'Suite Royale', price: 4259 },
+      { city: 'Marrakech', name: 'Four Seasons', stars: 5, type: 'Jardin Suite', price: 1859 },
+      { city: 'Bangkok', name: 'Mandarin Oriental', stars: 5, type: 'River View Suite', price: 2950 },
+      { city: 'Rio', name: 'Belmond Copacabana', stars: 5, type: 'Ocean Front', price: 2659 },
+    ];
 
-    await Promise.all([
-      this.roomsService.create({ hotelId: plaza.id, type: 'Suite Presidentielle', pricePerNight: 850 }),
-      this.roomsService.create({ hotelId: plaza.id, type: 'Chambre Deluxe', pricePerNight: 420 }),
-      this.roomsService.create({ hotelId: ritz.id, type: 'Suite Royale', pricePerNight: 770, available: false }),
-      this.roomsService.create({ hotelId: burj.id, type: 'Suite Royale Duplex', pricePerNight: 1780 }),
-    ]);
+    for (const h of hotelsData) {
+      const hotel = await this.hotelsService.create({
+        name: h.name,
+        city: h.city,
+        stars: h.stars,
+        status: HotelStatus.Active,
+      });
+      await this.roomsService.create({
+        hotelId: hotel.id,
+        type: h.type,
+        pricePerNight: h.price,
+      });
+    }
     this.logger.log('Hotels et chambres de demonstration crees.');
   }
 }

@@ -26,10 +26,13 @@ export class ReservationsService {
 
     const arrivalDate = new Date(createReservationDto.arrivalDate);
     const departureDate = new Date(createReservationDto.departureDate);
-    const totalAmount = this.calculateTotal(arrivalDate, departureDate, room.pricePerNight);
+    const adults = createReservationDto.adults || 1;
+    const children = createReservationDto.children || 0;
+
+    const totalAmount = this.calculateTotal(arrivalDate, departureDate, room.pricePerNight, adults, children);
 
     return this.reservationsRepository.save(
-      this.reservationsRepository.create({ user, room, arrivalDate, departureDate, totalAmount }),
+      this.reservationsRepository.create({ user, room, arrivalDate, departureDate, totalAmount, adults, children }),
     );
   }
 
@@ -68,10 +71,19 @@ export class ReservationsService {
       reservation.status = updateReservationDto.status;
     }
 
+    if (updateReservationDto.adults !== undefined) {
+      reservation.adults = updateReservationDto.adults;
+    }
+    if (updateReservationDto.children !== undefined) {
+      reservation.children = updateReservationDto.children;
+    }
+
     reservation.totalAmount = this.calculateTotal(
       reservation.arrivalDate,
       reservation.departureDate,
       reservation.room.pricePerNight,
+      reservation.adults,
+      reservation.children
     );
     return this.reservationsRepository.save(reservation);
   }
@@ -81,12 +93,17 @@ export class ReservationsService {
     await this.reservationsRepository.remove(reservation);
   }
 
-  private calculateTotal(arrivalDate: Date, departureDate: Date, pricePerNight: number): number {
+  private calculateTotal(arrivalDate: Date, departureDate: Date, pricePerNight: number, adults: number, children: number): number {
     const millisecondsPerDay = 1000 * 60 * 60 * 24;
     const nights = Math.ceil((departureDate.getTime() - arrivalDate.getTime()) / millisecondsPerDay);
     if (nights <= 0) {
       throw new BadRequestException('La date de depart doit etre apres la date arrivee.');
     }
-    return nights * pricePerNight;
+    const totalPeople = adults + children;
+    let extraSupplement = 0;
+    if (totalPeople > 4) {
+      extraSupplement = (totalPeople - 4) * 10000;
+    }
+    return nights * (pricePerNight + extraSupplement);
   }
 }

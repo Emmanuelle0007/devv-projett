@@ -17,4 +17,12 @@ export class CreateReservationDto {
   @ApiProperty({ example: '2026-07-20' })
   @IsDateString()
   departureDate: string;
+
+  @ApiProperty({ example: 2 })
+  @IsInt()
+  adults: number;
+
+  @ApiProperty({ example: 0 })
+  @IsInt()
+  children: number;
 }

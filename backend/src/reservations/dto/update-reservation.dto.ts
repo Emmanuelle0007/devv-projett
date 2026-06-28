@@ -27,4 +27,14 @@ export class UpdateReservationDto {
   @IsOptional()
   @IsEnum(ReservationStatus)
   status?: ReservationStatus;
+
+  @ApiProperty({ example: 2 })
+  @IsOptional()
+  @IsInt()
+  adults?: number;
+
+  @ApiProperty({ example: 0 })
+  @IsOptional()
+  @IsInt()
+  children?: number;
 }

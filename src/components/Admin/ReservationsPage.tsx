@@ -1,18 +1,43 @@
-import { useState } from "react"
-import type { Reservation } from "../../types"
-import { initialReservations } from "../../data"
+import { useState, useEffect } from "react"
+import { api, type ApiReservation } from "../../api"
+import { useAuth } from "../../useAuth"
 import Badge from "../ui/Badge"
 
 export default function ReservationsPage() {
-  const [reservations, setReservations] = useState<Reservation[]>(initialReservations)
+  const { user } = useAuth()
+  const [reservations, setReservations] = useState<ApiReservation[]>([])
   const [search, setSearch] = useState("")
 
-  const confirm = (id: number) => setReservations(prev => prev.map(r => r.id === id ? { ...r, statut: "Confirmé" } : r))
-  const cancel  = (id: number) => setReservations(prev => prev.map(r => r.id === id ? { ...r, statut: "Annulé"   } : r))
+  const loadReservations = () => {
+    if (user) {
+      api.reservations(user.token!)
+         .then(setReservations)
+         .catch(err => alert(err instanceof Error ? err.message : 'Erreur'))
+    }
+  }
+
+  useEffect(() => {
+    loadReservations()
+  }, [user])
+
+  const updateStatus = async (id: number, status: string) => {
+    if (user) {
+      try {
+        await api.updateReservation(user.token!, id, { status })
+        loadReservations()
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Erreur')
+      }
+    }
+  }
+
+  const confirmRes = (id: number) => updateStatus(id, "Confirme")
+  const cancelRes  = (id: number) => updateStatus(id, "Annule")
+  const waitRes    = (id: number) => updateStatus(id, "En attente")
 
   const filtered = reservations.filter(r =>
-    r.client.toLowerCase().includes(search.toLowerCase()) ||
-    r.hotel.toLowerCase().includes(search.toLowerCase())
+    r.user.name.toLowerCase().includes(search.toLowerCase()) ||
+    r.room.hotel.name.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -42,23 +67,23 @@ export default function ReservationsPage() {
           <tbody>
             {filtered.map(r => (
               <tr key={r.id} style={{ borderBottom: "1px solid #f9fafb" }}>
-                <td style={{ padding: "13px 14px", fontWeight: 600, color: "#1f2937" }}>{r.client}</td>
-                <td style={{ padding: "13px 14px", color: "#6b7280" }}>{r.hotel}</td>
-                <td style={{ padding: "13px 14px", color: "#374151" }}>{r.chambre}</td>
-                <td style={{ padding: "13px 14px", color: "#6b7280" }}>{r.arrivee}</td>
-                <td style={{ padding: "13px 14px", color: "#6b7280" }}>{r.depart}</td>
-                <td style={{ padding: "13px 14px", fontWeight: 700, color: "#3B82F6" }}>€ {r.montant.toLocaleString()}</td>
-                <td style={{ padding: "13px 14px" }}><Badge label={r.statut} /></td>
+                <td style={{ padding: "13px 14px", fontWeight: 600, color: "#1f2937" }}>{r.user.name}</td>
+                <td style={{ padding: "13px 14px", color: "#6b7280" }}>{r.room.hotel.name}</td>
+                <td style={{ padding: "13px 14px", color: "#374151" }}>{r.room.type}</td>
+                <td style={{ padding: "13px 14px", color: "#6b7280" }}>{r.arrivalDate.split('T')[0]}</td>
+                <td style={{ padding: "13px 14px", color: "#6b7280" }}>{r.departureDate.split('T')[0]}</td>
+                <td style={{ padding: "13px 14px", fontWeight: 700, color: "#3B82F6" }}>{r.totalAmount.toLocaleString()} FCFA</td>
+                <td style={{ padding: "13px 14px" }}><Badge label={r.status} /></td>
                 <td style={{ padding: "13px 14px" }}>
-                  {r.statut === "En attente" && <>
-                    <button onClick={() => confirm(r.id)} style={{ background: "#dcfce7", color: "#166534", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", marginRight: 4 }}>Confirmer</button>
-                    <button onClick={() => cancel(r.id)}  style={{ background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Annuler</button>
+                  {r.status === "En attente" && <>
+                    <button onClick={() => confirmRes(r.id)} style={{ background: "#dcfce7", color: "#166534", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", marginRight: 4 }}>Confirmer</button>
+                    <button onClick={() => cancelRes(r.id)}  style={{ background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Annuler</button>
                   </>}
-                  {r.statut === "Confirmé" && (
-                    <button onClick={() => cancel(r.id)} style={{ background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Annuler</button>
+                  {r.status === "Confirme" && (
+                    <button onClick={() => cancelRes(r.id)} style={{ background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Annuler</button>
                   )}
-                  {r.statut === "Annulé" && (
-                    <button onClick={() => confirm(r.id)} style={{ background: "#dbeafe", color: "#1e40af", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Rétablir</button>
+                  {r.status === "Annule" && (
+                    <button onClick={() => waitRes(r.id)} style={{ background: "#dbeafe", color: "#1e40af", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Rétablir</button>
                   )}
                 </td>
               </tr>

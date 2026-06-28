@@ -1,13 +1,23 @@
 import { useCallback, useState, type ReactNode } from 'react'
-import { type User, MOCK_USERS, ROLE_REDIRECTS, type Role } from './Users'
+import { api } from './api'
 import { AuthContext } from './auth-context'
-
-let usersStore: User[] = [...MOCK_USERS]
+import { ROLE_REDIRECTS, type User } from './Users'
 
 const getStoredUser = (): User | null => {
   const stored = localStorage.getItem('auth_user')
   return stored ? JSON.parse(stored) : null
 }
+
+const toAppUser = (payload: {
+  accessToken: string
+  user: { id: number; name: string; email: string; role: 'admin' | 'user' }
+}): User => ({
+  id: String(payload.user.id),
+  name: payload.user.name,
+  email: payload.user.email,
+  role: payload.user.role,
+  token: payload.accessToken,
+})
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => getStoredUser())
@@ -15,23 +25,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     setLoading(true)
-    await new Promise(res => setTimeout(res, 800))
-
-    const found = usersStore.find(
-      existingUser =>
-        existingUser.email.toLowerCase() === email.toLowerCase() &&
-        existingUser.password === password
-    )
-
-    if (!found) {
+    try {
+      const payload = await api.login(email, password)
+      const loggedUser = toAppUser(payload)
+      setUser(loggedUser)
+      localStorage.setItem('auth_user', JSON.stringify(loggedUser))
+      return { success: true, redirect: ROLE_REDIRECTS[loggedUser.role] }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Email ou mot de passe incorrect.',
+      }
+    } finally {
       setLoading(false)
-      return { success: false, error: 'Email ou mot de passe incorrect.' }
     }
-
-    setUser(found)
-    localStorage.setItem('auth_user', JSON.stringify(found))
-    setLoading(false)
-    return { success: true, redirect: ROLE_REDIRECTS[found.role] }
   }, [])
 
   const logout = useCallback(() => {
@@ -41,27 +48,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     setLoading(true)
-    await new Promise(res => setTimeout(res, 800))
-
-    const exists = usersStore.find(existingUser => existingUser.email.toLowerCase() === email.toLowerCase())
-    if (exists) {
+    try {
+      const payload = await api.register(name, email, password)
+      const registeredUser = toAppUser(payload)
+      setUser(registeredUser)
+      localStorage.setItem('auth_user', JSON.stringify(registeredUser))
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Impossible de creer le compte.',
+      }
+    } finally {
       setLoading(false)
-      return { success: false, error: 'Un compte avec cet email existe déjà.' }
     }
-
-    const newUser: User = {
-      id: String(Date.now()),
-      name,
-      email,
-      password,
-      role: 'user' as Role
-    }
-
-    usersStore = [...usersStore, newUser]
-    setUser(newUser)
-    localStorage.setItem('auth_user', JSON.stringify(newUser))
-    setLoading(false)
-    return { success: true }
   }, [])
 
   const getRedirect = useCallback(() => {
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         register,
-        getRedirect
+        getRedirect,
       }}
     >
       {children}

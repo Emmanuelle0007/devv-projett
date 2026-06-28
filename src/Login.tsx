@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import AuthLayout from './AuthLayout';
 
 export default function Login() {
     const { login } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+    const returnTo = location.state?.returnTo;
+
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -21,7 +24,7 @@ export default function Login() {
         const result = await login(email, password);
         setLoading(false);
         if (result.success && result.redirect) {
-            navigate(result.redirect);
+            navigate(returnTo || result.redirect);
         } else {
             setError(result.error || 'Erreur inconnue.');
         }

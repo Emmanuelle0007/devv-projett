@@ -22,6 +22,12 @@ export class Reservation {
   @Column({ type: 'integer' })
   totalAmount: number;
 
+  @Column({ type: 'integer', default: 1 })
+  adults: number;
+
+  @Column({ type: 'integer', default: 0 })
+  children: number;
+
   @Column({ type: 'text', default: ReservationStatus.Pending })
   status: ReservationStatus;
 

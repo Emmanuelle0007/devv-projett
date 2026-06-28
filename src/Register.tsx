@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import AuthLayout from './AuthLayout'
 import { ROLE_REDIRECTS } from './Users'
 import { useAuth } from './useAuth'
@@ -33,7 +33,8 @@ function InputField({ label, type = 'text', value, onChange, placeholder }: Inpu
 export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
-
+  const location = useLocation()
+  const returnTo = location.state?.returnTo
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -65,7 +66,7 @@ export default function Register() {
     setLoading(false)
 
     if (result.success) {
-      navigate(ROLE_REDIRECTS.user)
+      navigate(returnTo || ROLE_REDIRECTS.user)
     } else {
       setError(result.error || 'Erreur inconnue.')
     }

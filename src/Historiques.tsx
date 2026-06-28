@@ -1,29 +1,16 @@
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
-
-interface Reservation {
-  id: string;
-  guest: string;
-  room: string;
-  checkIn: string;
-  checkOut: string;
-  status: string;
-  amount: number;
-  avatar: string;
-  nights?: number;
-  adults?: number;
-  children?: number;
-}
+import { type ApiReservation, api } from './api';
+import { useAuth } from './useAuth';
 
 interface HistoriqueProps {
-  reservations: Reservation[];
-  onDeleteReservation?: (id: string) => void;
+  reservations: ApiReservation[];
+  onReservationChanged: () => void;
 }
 
-// ✅ Corrige avec un index signature
 const statusConfig: Record<string, { bg: string; text: string; dot: string }> = {
-  "Terminée": { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" },
-  "Annulée": { bg: "bg-red-100", text: "text-red-600", dot: "bg-red-500" },
+  "Terminee": { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" },
+  "Annule": { bg: "bg-red-100", text: "text-red-600", dot: "bg-red-500" },
 };
 
 const avatarColors = [
@@ -33,16 +20,30 @@ const avatarColors = [
   "bg-amber-100 text-amber-700",
 ];
 
-export default function Historique({ reservations, onDeleteReservation }: HistoriqueProps) {
+export default function Historique({ reservations, onReservationChanged }: HistoriqueProps) {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   
   const filtered = reservations.filter(r => 
-    r.guest.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.id.toLowerCase().includes(searchTerm.toLowerCase())
+    r.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.id.toString().toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalRevenu = reservations.reduce((sum, r) => sum + r.amount, 0);
+  const totalRevenu = reservations.reduce((sum, r) => sum + r.totalAmount, 0);
   const formatPrice = (price: number) => price.toLocaleString() + ' FCFA';
+
+  const handleDeleteReservation = async (id: number) => {
+    if (confirm(`Supprimer ?`)) {
+      if (user) {
+         try {
+            await api.deleteReservation(user.token!, id);
+            onReservationChanged();
+         } catch(err) {
+            alert(err instanceof Error ? err.message : 'Erreur');
+         }
+      }
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -71,37 +72,37 @@ export default function Historique({ reservations, onDeleteReservation }: Histor
             <p className="text-gray-500">Aucune réservation trouvée</p>
           </div>
         ) : (
-          filtered.map((res, i) => (
+          filtered.map((res, i) => {
+            const avatar = res.user.name.split(' ').map(n => n[0]).join('').toUpperCase();
+            return (
             <div key={res.id} className="bg-white rounded-2xl border p-4 hover:shadow-md">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${avatarColors[i % avatarColors.length]}`}>
-                      {res.avatar}
+                      {avatar}
                     </div>
                     <div>
-                      <p className="font-semibold">{res.guest}</p>
-                      <p className="text-xs text-gray-400">{res.id}</p>
+                      <p className="font-semibold">{res.user.name}</p>
+                      <p className="text-xs text-gray-400">ID: {res.id}</p>
                     </div>
                     <span className={`px-2 py-0.5 rounded-full text-xs ${statusConfig[res.status]?.bg || 'bg-gray-100 text-gray-600'}`}>
                       {res.status}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                    <div><p className="text-xs text-gray-500">Chambre</p><p>{res.room}</p></div>
-                    <div><p className="text-xs text-gray-500">Dates</p><p>{res.checkIn} → {res.checkOut}</p></div>
-                    <div><p className="text-xs text-gray-500">Montant</p><p className="font-bold text-amber-600">{formatPrice(res.amount)}</p></div>
+                    <div><p className="text-xs text-gray-500">Chambre</p><p>{res.room.hotel.name} - {res.room.type}</p></div>
+                    <div><p className="text-xs text-gray-500">Dates</p><p>{res.arrivalDate.split('T')[0]} → {res.departureDate.split('T')[0]}</p></div>
+                    <div><p className="text-xs text-gray-500">Montant</p><p className="font-bold text-amber-600">{formatPrice(res.totalAmount)}</p></div>
                   </div>
                 </div>
-                {onDeleteReservation && (
-                  <button onClick={() => { if (confirm(`Supprimer ?`)) onDeleteReservation(res.id); }} 
-                    className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                <button onClick={() => handleDeleteReservation(res.id)} 
+                  className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg">
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
-          ))
+          )})
         )}
       </div>
     </div>

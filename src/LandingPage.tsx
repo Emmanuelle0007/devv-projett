@@ -5,7 +5,7 @@ import { Card } from './Card';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { OfferCard } from './OfferCard';
-
+import { api, type ApiRoom, type ApiReservation } from './api';
 const LOGO_SRC = '/src/assets/logo.png';
 const LOGO_FALLBACK = 'IRMA';
 const HERO_IMAGE = '/src/assets/lulu.jpg';
@@ -169,14 +169,7 @@ const testimonials = [
     },
 ];
 
-type Booking = {
-    hotelName: string;
-    checkin: string;
-    checkout: string;
-    guests: string;
-    date: string;
-    userId: string;
-};
+
 
 type Hotel = typeof hotels[0];
 
@@ -188,37 +181,33 @@ function HotelCard({ hotel, onBookingAdded }: { hotel: Hotel; onBookingAdded: ()
     const [bookingData, setBookingData] = useState({ checkin: '', checkout: '', guests: '2' });
     const [bookingSuccess, setBookingSuccess] = useState(false);
 
-    const handleBooking = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleBooking = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!bookingData.checkin || !bookingData.checkout) return;
 
         if (!user) {
-            alert('Veuillez vous connecter pour réserver');
-            navigate('/register');
+            navigate('/login', { state: { returnTo: '/' } });
             return;
         }
 
-        const newBooking: Booking = {
-            hotelName: hotel.name,
-            checkin: bookingData.checkin,
-            checkout: bookingData.checkout,
-            guests: bookingData.guests,
-            date: new Date().toLocaleDateString('fr-FR'),
-            userId: user.id,
-        };
+        try {
+            await api.createReservation(user.token!, {
+                userId: Number(user.id),
+                roomId: Number(hotel.id), // Assign hotel ID as room ID for mockup
+                arrivalDate: bookingData.checkin,
+                departureDate: bookingData.checkout
+            });
 
-        const saved = localStorage.getItem('userBookings');
-        const current: Booking[] = saved ? JSON.parse(saved) : [];
-        localStorage.setItem('userBookings', JSON.stringify([...current, newBooking]));
-
-        onBookingAdded();
-
-        setBookingSuccess(true);
-        setTimeout(() => {
-            setBookingSuccess(false);
-            setShowModal(false);
-            navigate('/dashboards');
-        }, 2000);
+            onBookingAdded();
+            setBookingSuccess(true);
+            setTimeout(() => {
+                setBookingSuccess(false);
+                setShowModal(false);
+                navigate(user.role === 'admin' ? '/dashboard/admin' : '/dashboards/user');
+            }, 2000);
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Erreur');
+        }
     };
 
     return (
@@ -235,8 +224,14 @@ function HotelCard({ hotel, onBookingAdded }: { hotel: Hotel; onBookingAdded: ()
                 </h3>
                 <p className="text-stone-400 text-sm mb-4">{hotel.location}</p>
                 <div className="flex items-center justify-between pt-4 border-t border-stone-100">
-                    <span className="font-bold">{hotel.price.toLocaleString()} €</span>
-                    <Button onClick={() => setShowModal(true)}>Réserver</Button>
+                    <span className="font-bold">{hotel.price.toLocaleString()} FCFA</span>
+                    <Button onClick={() => {
+                        if (!user) {
+                            navigate('/login', { state: { returnTo: '/' } });
+                        } else {
+                            setShowModal(true);
+                        }
+                    }}>Réserver</Button>
                 </div>
             </Card>
 
@@ -303,24 +298,48 @@ export default function LandingPage() {
     const [emailSent, setEmailSent] = useState(false);
     const [showAllHotels, setShowAllHotels] = useState(false);
     const [showBookingsModal, setShowBookingsModal] = useState(false);
+    const [apiRooms, setApiRooms] = useState<ApiRoom[]>([]);
     const [bookingsVersion, setBookingsVersion] = useState(0);
+    const [userBookings, setUserBookings] = useState<ApiReservation[]>([]);
 
-    const userBookings = useMemo<Booking[]>(() => {
-        void bookingsVersion;
-        const saved = localStorage.getItem('userBookings');
-        const allBookings: Booking[] = saved ? JSON.parse(saved) : [];
-        return user ? allBookings.filter(b => b.userId === user.id) : [];
+    useEffect(() => {
+        if (user && user.token) {
+            api.userReservations(user.id, user.token).then(setUserBookings).catch(console.error);
+        } else {
+            setUserBookings([]);
+        }
     }, [user, bookingsVersion]);
+
+    useEffect(() => {
+        api.rooms().then(setApiRooms).catch(console.error);
+    }, []);
 
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 40);
         window.addEventListener('scroll', onScroll);
         return () => window.removeEventListener('scroll', onScroll);
     }, []);
-
     const refreshBookings = () => {
         setBookingsVersion(version => version + 1);
     };
+
+    const dynamicHotels = useMemo(() => {
+        if (apiRooms.length === 0) return hotels;
+        return apiRooms.map((room, idx) => {
+            const fallback = hotels[idx % hotels.length];
+            return {
+                ...fallback,
+                id: room.id, // Use room id for the HotelCard booking logic
+                name: room.hotel.name,
+                location: room.hotel.city,
+                price: room.pricePerNight,
+                rating: room.hotel.stars,
+                category: room.type,
+            };
+        });
+    }, [apiRooms]);
+
+    const displayedHotels = showAllHotels ? dynamicHotels : dynamicHotels.slice(0, 3);
 
     const handleNewsletter = () => {
         if (!email || !email.includes('@')) return;
@@ -329,7 +348,6 @@ export default function LandingPage() {
         setTimeout(() => setEmailSent(false), 4000);
     };
 
-    const displayedHotels = showAllHotels ? hotels : hotels.slice(0, 3);
 
     return (
         <>
@@ -973,24 +991,24 @@ export default function LandingPage() {
                                             marginBottom: '8px',
                                         }}
                                     >
-                                        {booking.hotelName}
+                                        {booking.room.hotel.name}
                                     </h4>
                                     <div className="grid grid-cols-2 gap-3 text-sm">
                                         <div>
                                             <p className="text-stone-400" style={{ fontSize: '11px' }}>Arrivée</p>
-                                            <p className="text-stone-700">{new Date(booking.checkin).toLocaleDateString('fr-FR')}</p>
+                                            <p className="text-stone-700">{new Date(booking.arrivalDate).toLocaleDateString('fr-FR')}</p>
                                         </div>
                                         <div>
                                             <p className="text-stone-400" style={{ fontSize: '11px' }}>Départ</p>
-                                            <p className="text-stone-700">{new Date(booking.checkout).toLocaleDateString('fr-FR')}</p>
+                                            <p className="text-stone-700">{new Date(booking.departureDate).toLocaleDateString('fr-FR')}</p>
                                         </div>
                                         <div>
-                                            <p className="text-stone-400" style={{ fontSize: '11px' }}>Voyageurs</p>
-                                            <p className="text-stone-700">{booking.guests}</p>
+                                            <p className="text-stone-400" style={{ fontSize: '11px' }}>Chambre</p>
+                                            <p className="text-stone-700">{booking.room.type}</p>
                                         </div>
                                         <div>
-                                            <p className="text-stone-400" style={{ fontSize: '11px' }}>Réservé le</p>
-                                            <p className="text-stone-700">{booking.date}</p>
+                                            <p className="text-stone-400" style={{ fontSize: '11px' }}>Montant total</p>
+                                            <p className="text-stone-700 font-bold">{booking.totalAmount.toLocaleString()} FCFA</p>
                                         </div>
                                     </div>
                                 </div>
